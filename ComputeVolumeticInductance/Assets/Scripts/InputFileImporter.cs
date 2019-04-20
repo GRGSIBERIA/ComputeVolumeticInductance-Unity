@@ -1,5 +1,7 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using UnityEngine;
 
@@ -18,11 +20,34 @@ using UnityEngine;
 
 public class Part
 {
+    /// <summary>
+    /// パート名
+    /// </summary>
     public string PartName { get; private set; }
 
-    public Vector3[] Positions { get; set; }
-    public int[][] Elements { get; set; }
+    /// <summary>
+    /// 最も大きいノード番号
+    /// </summary>
+    public int MaxNodeId { get; set; }
 
+    /// <summary>
+    /// 節点の座標値
+    /// </summary>
+    public Vector3[] Positions { get; set; }
+
+    /// <summary>
+    /// 最も大きい要素節点番号
+    /// </summary>
+    public int MaxElementId { get; set; }
+
+    /// <summary>
+    /// 要素節点番号, 何もないときは-1で埋めている
+    /// </summary>
+    public int[,] Elements { get; set; }
+
+    /// <summary>
+    /// 移動値
+    /// </summary>
     public Vector3 Translate { get; private set; }
 
     public Part(string partName)
@@ -60,33 +85,48 @@ public class InputFileImporter
         throw new System.Exception("Do not have parameter(" + parameter + ")");
     }
 
-    Vector3 MakePosition(string line)
+    Vector3 MakePosition(string line, out int id)
     {
         var s = line.Split(',');
         Vector3 v;
-        v.x = float.Parse(s[0]);
-        v.y = float.Parse(s[1]);
-        v.z = float.Parse(s[2]);
+        v.x = float.Parse(s[1]);
+        v.y = float.Parse(s[2]);
+        v.z = float.Parse(s[3]);
+        id = int.Parse(s[0]);
         return v;
     }
 
-    Vector3[] GetNodes(string[] lines, ref int i)
+    Vector3[] GetNodes(string[] lines, ref int linenum, out int maxNodeId)
     {
-        List<Vector3> nodes = new List<Vector3>();
-        ++i;    // 1行進める
+        List<Vector3> nodes = new List<Vector3>(16384);
+        List<int> ids = new List<int>(16384);
+        ++linenum;    // 1行進める
 
-        while (i < lines.Length)
+        int id;
+
+        while (linenum < lines.Length)
         {
             // 要素定義が来るまではNodeのデータが挿入されている
-            if (lines[i].Contains("*"))
+            if (lines[linenum].Contains("*"))
                 break;
 
-            nodes.Add(MakePosition(lines[i]));
+            nodes.Add(MakePosition(lines[linenum], out id));
+            ids.Add(id);
 
-            ++i;
+            ++linenum;
         }
 
-        return nodes.ToArray();
+        // 要素の最大値が同じであれば内容が詰まっているはずなのでそれを返す
+        int size = ids.Max();
+        maxNodeId = size;
+        if (size == nodes.Count)
+            return nodes.ToArray();
+
+        // 戻り値を代入する
+        Vector3[] retpos = new Vector3[size];
+        for (int i = 0; i < nodes.Count; ++i)
+            retpos[ids[i]] = nodes[i];
+        return retpos;
     }
 
     int[] MakeElement(string line)
@@ -94,29 +134,56 @@ public class InputFileImporter
         int[] element = new int[4];
         var splists = line.Split(',');
 
-        // 0番の要素は要素番号なので, 1番以降を代入しないといけない
         for (int i = 0; i < 4; ++i)
-            element[i] = int.Parse(splists[i + 1]);
+            element[i] = int.Parse(splists[i]);
         return element;
     }
 
-    int[][] GetElements(string[] lines, ref int i)
+    int[,] GetElements(string[] lines, ref int linenum, out int maxSize)
     {
-        List<int[]> elements = new List<int[]>();
-        ++i;
+        Dictionary<int, int[]> edict = new Dictionary<int, int[]>();
+        ++linenum;
+        int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(int));
+        var dest = new int[4];
 
-        while (i < lines.Length)
+        while (linenum < lines.Length)
         {
             // 要素定義が来たら抜ける
-            if (lines[i].Contains("*"))
+            if (lines[linenum].Contains("*"))
                 break;
 
-            elements.Add(MakeElement(lines[i]));
+            // 一時的に辞書配列に入れていく
+            var element = MakeElement(lines[linenum]);
+            Buffer.BlockCopy(element, size, dest, 0, 4 * size);
+            edict[element[0]] = dest;
 
-            ++i;
+            ++linenum;
         }
 
-        return elements.ToArray();
+        // リストに辞書配列を追加する
+        int[] keys = new int[edict.Count];
+        edict.Keys.CopyTo(keys, 0);
+        int max = edict.Keys.Max();
+        int[,] elements = new int[max, 4];
+
+        // 配列の初期化, -1のときはnull扱い
+        for (int cnt = 0; cnt < max; ++cnt)
+        {
+            for (int loop = 0; loop < 4; ++loop)
+                elements[cnt, loop] = -1;
+        }
+
+        // 各要素を代入する
+        for (int cnt = 0; cnt < keys.Length; ++cnt)
+        {
+            var val = edict[keys[cnt]];
+            for (int loop = 0; loop < 4; ++loop)
+                elements[keys[cnt], loop] = val[loop];
+        }
+
+        maxSize = max;
+
+        return elements;
     }
 
     void ReadLines(string[] lines)
@@ -155,12 +222,20 @@ public class InputFileImporter
 
             else if (line.Contains("*Node"))
             {
-                Parts[currentPart].Positions = GetNodes(lines, ref i);
+                // 要素の定義
+                var part = Parts[currentPart];
+                int maxNodeId;
+                part.Positions = GetNodes(lines, ref i, out maxNodeId);
+                part.MaxNodeId = maxNodeId;
             }
 
             else if (line.Contains("*Element"))
             {
-                Parts[currentPart].Elements = GetElements(lines, ref i);
+                // 要素節点番号の定義
+                var part = Parts[currentPart];
+                int maxSize;
+                part.Elements = GetElements(lines, ref i, out maxSize);
+                part.MaxElementId = maxSize;
             }
 
             ++i;
