@@ -34,8 +34,9 @@ public class InputFileLoaderWindow : ScriptableWizard
 
         foreach (var kv in inp.Parts)
         {
-            var newpath = string.Format("{0}/{1}/{2}.assets", basedir, basepath, kv.Key);
+            var newpath = string.Format("{0}/{1}/{2}.asset", basedir, basepath, kv.Key);
             AssetDatabase.CreateAsset(kv.Value, newpath);
+            AssetDatabase.ImportAsset(newpath);
         }
     }
 }

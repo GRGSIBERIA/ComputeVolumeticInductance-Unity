@@ -1,10 +1,11 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System;
+using System.Linq;
 using UnityEngine;
 
 [System.Serializable]
-public class EList
+public class ElementList
 {
     public int[] Element = new int[4] { -1, -1, -1, -1 };
 
@@ -24,6 +25,73 @@ public class EList
     {
         int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(int));
         Buffer.BlockCopy(e, 0, Element, 0, size * 4);
+    }
+
+    /// <summary>
+    /// 四面体からエッジを取得
+    /// </summary>
+    /// <returns>エッジの配列</returns>
+    public EdgeList[] GetEdges()
+    {
+        var edges = new EdgeList[6];
+
+        edges[0] = new EdgeList(Element[0], Element[1]);
+        edges[1] = new EdgeList(Element[0], Element[2]);
+        edges[2] = new EdgeList(Element[0], Element[3]);
+
+        edges[3] = new EdgeList(Element[1], Element[2]);
+        edges[4] = new EdgeList(Element[1], Element[3]);
+        edges[5] = new EdgeList(Element[2], Element[3]);
+
+        return edges;
+    }
+}
+
+[System.Serializable]
+public class EdgeList : IEqualityComparer
+{
+    public int[] Edge = new int[2] { -1, -1 };
+
+    public EdgeList(int a, int b)
+    {
+        Edge[0] = a;
+        Edge[1] = b;
+        Sort();
+    }
+
+    public int this[int i]
+    {
+        get
+        {
+            return Edge[i];
+        }
+        set
+        {
+            Edge[i] = value;
+        }
+    }
+
+    public new bool Equals(object xx, object yy)
+    {
+        var x = (EdgeList)xx;
+        var y = (EdgeList)yy;
+        return x[0] == y[0] && x[1] == y[1];
+    }
+
+    public int GetHashCode(object ob)
+    {
+        var obj = (EdgeList)ob;
+        return obj.Edge[0] ^ obj.Edge[1];
+    }
+
+    public void Sort()
+    {
+        if (Edge[0] > Edge[1])
+        {
+            Edge[0] ^= Edge[1];
+            Edge[1] ^= Edge[0];
+            Edge[0] ^= Edge[1];
+        }
     }
 }
 
@@ -51,9 +119,13 @@ public class InputPart : ScriptableObject
 
     /// <summary>
     /// 要素節点番号, 何もないときは-1で埋めている
-    /// 4*size な2次元を1次元配列にまとめたもの
     /// </summary>
-    [SerializeField] public EList[] Elements;
+    [SerializeField] public ElementList[] Elements;
+
+    /// <summary>
+    /// 要素節点，エッジ
+    /// </summary>
+    [SerializeField] public EdgeList[] Edges;
 
     /// <summary>
     /// 移動値
@@ -88,5 +160,25 @@ public class InputPart : ScriptableObject
         b.z = float.Parse(splits[5]);
         float angle = float.Parse(splits[6]);
         Rotation = Quaternion.AngleAxis(angle, b - a);
+    }
+
+    public void ConstructEdges()
+    {
+        List<EdgeList> edges = new List<EdgeList>(Positions.Length);
+
+        if (Elements == null)
+            return;
+
+        foreach (var elem in Elements)
+        {
+            var elementEdge = elem.GetEdges();
+            foreach (var e in elementEdge)
+            {
+                if (!edges.Contains(e))
+                    edges.Add(e);
+            }
+        }
+
+        Edges = edges.ToArray();
     }
 }
