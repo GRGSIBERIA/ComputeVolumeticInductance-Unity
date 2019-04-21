@@ -18,5 +18,6 @@ MonoBehaviour:
   - {x: 0, y: 0, z: 0}
   MaxElementId: 0
   Elements: []
+  Edges: []
   Translate: {x: 6, y: -29, z: -81.775}
   Rotation: {x: 0, y: 0, z: 0, w: 1}

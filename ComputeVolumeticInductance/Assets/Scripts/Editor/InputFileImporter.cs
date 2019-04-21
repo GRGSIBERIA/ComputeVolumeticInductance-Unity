@@ -93,7 +93,7 @@ public class InputFileImporter
         return element;
     }
 
-    EList[] GetElements(string[] lines, ref int linenum, out int maxSize)
+    ElementList[] GetElements(string[] lines, ref int linenum, out int maxSize)
     {
         Dictionary<int, int[]> edict = new Dictionary<int, int[]>();
         int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(int));
@@ -112,7 +112,7 @@ public class InputFileImporter
             var element = MakeElement(lines[linenum]);
 
             var dest = new int[4];
-            Buffer.BlockCopy(element, 0, dest, 0, size * 4);
+            Buffer.BlockCopy(element, size, dest, 0, size * 4);
             edict[element[0]] = dest;
 
             ++linenum;
@@ -125,17 +125,16 @@ public class InputFileImporter
         int elsize = max + 1;
 
         // 配列の初期化, -1のときはnull扱い
-        EList[] elements = new EList[elsize];
+        ElementList[] elements = new ElementList[elsize];
 
         // 各要素を代入する
         for (int cnt = 0; cnt < keys.Length; ++cnt)
         {
             var val = edict[keys[cnt]];
-            elements[cnt] = new EList();
+            elements[cnt] = new ElementList();
             try
             {
-                for (int loop = 0; loop < 4; ++loop)
-                    elements[keys[cnt]].SetElement(val);
+                elements[keys[cnt]].SetElement(val);
             }
             catch
             {
@@ -244,5 +243,9 @@ public class InputFileImporter
         string[] lines = text.Split('\n');
 
         ReadLines(lines);
+
+        // エッジを生成する
+        foreach (var part in Parts)
+            part.Value.ConstructEdges();
     }
 }
