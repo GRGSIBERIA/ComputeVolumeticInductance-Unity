@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using UnityEngine;
+using UnityEditor;
 
 /**
  * 入力ファイルの書式
@@ -18,59 +19,10 @@ using UnityEngine;
  * n, x, y, z
  */
 
-public class Part
-{
-    /// <summary>
-    /// パート名
-    /// </summary>
-    public string PartName { get; private set; }
-
-    /// <summary>
-    /// 最も大きいノード番号
-    /// </summary>
-    public int MaxNodeId { get; set; }
-
-    /// <summary>
-    /// 節点の座標値
-    /// </summary>
-    public Vector3[] Positions { get; set; }
-
-    /// <summary>
-    /// 最も大きい要素節点番号
-    /// </summary>
-    public int MaxElementId { get; set; }
-
-    /// <summary>
-    /// 要素節点番号, 何もないときは-1で埋めている
-    /// </summary>
-    public int[,] Elements { get; set; }
-
-    /// <summary>
-    /// 移動値
-    /// </summary>
-    public Vector3 Translate { get; private set; }
-
-    public Part(string partName)
-    {
-        PartName = partName;
-    }
-
-    // 文字列から移動値を設定する
-    public void SetTranslate(string line)
-    {
-        var splits = line.Split(',');
-        Vector3 t;
-        t.x = float.Parse(splits[0]);
-        t.y = float.Parse(splits[1]);
-        t.z = float.Parse(splits[2]);
-        Translate = t;
-    }
-}
-
 public class InputFileImporter
 {
     public string Path { get; private set; }
-    public Dictionary<string, Part> Parts { get; private set; }
+    public Dictionary<string, InputPart> Parts { get; private set; }
     
     string ContainsParameter(string line, string parameter)
     {
@@ -92,7 +44,7 @@ public class InputFileImporter
         v.x = float.Parse(s[1]);
         v.y = float.Parse(s[2]);
         v.z = float.Parse(s[3]);
-        id = int.Parse(s[0]);
+        id = int.Parse(s[0]) - 1;
         return v;
     }
 
@@ -108,7 +60,9 @@ public class InputFileImporter
         {
             // 要素定義が来るまではNodeのデータが挿入されている
             if (lines[linenum].Contains("*"))
+            {
                 break;
+            }
 
             nodes.Add(MakePosition(lines[linenum], out id));
             ids.Add(id);
@@ -123,7 +77,7 @@ public class InputFileImporter
             return nodes.ToArray();
 
         // 戻り値を代入する
-        Vector3[] retpos = new Vector3[size];
+        Vector3[] retpos = new Vector3[size + 1];
         for (int i = 0; i < nodes.Count; ++i)
             retpos[ids[i]] = nodes[i];
         return retpos;
@@ -131,30 +85,34 @@ public class InputFileImporter
 
     int[] MakeElement(string line)
     {
-        int[] element = new int[4];
+        int[] element = new int[5];
         var splists = line.Split(',');
 
-        for (int i = 0; i < 4; ++i)
-            element[i] = int.Parse(splists[i]);
+        for (int i = 0; i < 5; ++i)
+            element[i] = int.Parse(splists[i]) - 1;
         return element;
     }
 
-    int[,] GetElements(string[] lines, ref int linenum, out int maxSize)
+    EList[] GetElements(string[] lines, ref int linenum, out int maxSize)
     {
         Dictionary<int, int[]> edict = new Dictionary<int, int[]>();
-        ++linenum;
         int size = System.Runtime.InteropServices.Marshal.SizeOf(typeof(int));
-        var dest = new int[4];
+
+        ++linenum;
 
         while (linenum < lines.Length)
         {
             // 要素定義が来たら抜ける
             if (lines[linenum].Contains("*"))
+            {
                 break;
+            }
 
             // 一時的に辞書配列に入れていく
             var element = MakeElement(lines[linenum]);
-            Buffer.BlockCopy(element, size, dest, 0, 4 * size);
+
+            var dest = new int[4];
+            Buffer.BlockCopy(element, 0, dest, 0, size * 4);
             edict[element[0]] = dest;
 
             ++linenum;
@@ -164,26 +122,56 @@ public class InputFileImporter
         int[] keys = new int[edict.Count];
         edict.Keys.CopyTo(keys, 0);
         int max = edict.Keys.Max();
-        int[,] elements = new int[max, 4];
+        int elsize = max + 1;
 
         // 配列の初期化, -1のときはnull扱い
-        for (int cnt = 0; cnt < max; ++cnt)
-        {
-            for (int loop = 0; loop < 4; ++loop)
-                elements[cnt, loop] = -1;
-        }
+        EList[] elements = new EList[elsize];
 
         // 各要素を代入する
         for (int cnt = 0; cnt < keys.Length; ++cnt)
         {
             var val = edict[keys[cnt]];
-            for (int loop = 0; loop < 4; ++loop)
-                elements[keys[cnt], loop] = val[loop];
+            elements[cnt] = new EList();
+            try
+            {
+                for (int loop = 0; loop < 4; ++loop)
+                    elements[keys[cnt]].SetElement(val);
+            }
+            catch
+            {
+                Debug.Log("What happen?");
+            }
         }
 
         maxSize = max;
 
         return elements;
+    }
+
+    void ReadNode(string[] lines, string currentPart, ref int i)
+    {
+        // 要素の定義
+        var line = lines[i];
+        if (line.Contains("*Node"))
+        {
+            var part = Parts[currentPart];
+            int maxNodeId;
+            part.Positions = GetNodes(lines, ref i, out maxNodeId);
+            part.MaxNodeId = maxNodeId;
+        }
+    }
+
+    void ReadElement(string[] lines, string currentPart, ref int i)
+    {
+        // 要素節点番号の定義
+        var line = lines[i];
+        if (line.Contains("*Element"))
+        {
+            var part = Parts[currentPart];
+            int maxSize;
+            part.Elements = GetElements(lines, ref i, out maxSize);
+            part.MaxElementId = maxSize;
+        }
     }
 
     void ReadLines(string[] lines)
@@ -198,46 +186,43 @@ public class InputFileImporter
             // パート定義の行が来る
             if (line.Contains("*Part"))
             {
-                var partName = ContainsParameter(line, "name");
-                Parts[partName] = new Part(partName);
+                var partName = ContainsParameter(line, "name").Trim();
+                var part = InputPart.CreateInstance<InputPart>();
+                part.PartName = partName;
+                Parts[partName] = part;
                 currentPart = partName;
+                ++i;
+
+                ReadNode(lines, currentPart, ref i);
+                ReadElement(lines, currentPart, ref i);
             }
 
             // インスタンス定義の行が来る
             else if (line.Contains("*Instance"))
             {
-                var partName = ContainsParameter(line, "part");
+                var partName = ContainsParameter(line, "part").Trim();
                 if (!Parts.ContainsKey(partName))
                     throw new System.Exception("Do not defined a part: " + partName);
 
                 currentPart = partName;
 
                 // 要素定義じゃなければ座標値のデータが来る
-                if (!lines[i + 1].Contains("*"))
+                ++i;
+                if (!lines[i].Contains("*"))
                 {
-                    // ローカル座標値のデータが来る
-                    Parts[currentPart].SetTranslate(lines[i + 1]);
+                    Parts[currentPart].SetTranslate(lines[i]);
+                    ++i;
                 }
-            }
+                // その次は回転の回転値データが来る
+                if (!lines[i].Contains("*"))
+                {
+                    Parts[currentPart].SetRotation(lines[i]);
+                    ++i;
+                }
 
-            else if (line.Contains("*Node"))
-            {
-                // 要素の定義
-                var part = Parts[currentPart];
-                int maxNodeId;
-                part.Positions = GetNodes(lines, ref i, out maxNodeId);
-                part.MaxNodeId = maxNodeId;
+                ReadNode(lines, currentPart, ref i);
+                ReadElement(lines, currentPart, ref i);
             }
-
-            else if (line.Contains("*Element"))
-            {
-                // 要素節点番号の定義
-                var part = Parts[currentPart];
-                int maxSize;
-                part.Elements = GetElements(lines, ref i, out maxSize);
-                part.MaxElementId = maxSize;
-            }
-
             ++i;
         }
     }
@@ -245,6 +230,7 @@ public class InputFileImporter
     public InputFileImporter(string path)
     {
         Path = path;
+        Parts = new Dictionary<string, InputPart>();
 
         if (!File.Exists(path))
             throw new FileNotFoundException("Do not exists file: " + path);
