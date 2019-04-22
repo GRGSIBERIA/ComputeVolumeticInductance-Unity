@@ -9,6 +9,8 @@ public class ElementList
 {
     public int[] Element = new int[4] { -1, -1, -1, -1 };
 
+    private static readonly int[] indices = { 0, 1, 2, 3, 0, 1 };
+
     public int this[int i]
     {
         get
@@ -44,6 +46,20 @@ public class ElementList
         edges[5] = new EdgeList(Element[2], Element[3]);
 
         return edges;
+    }
+
+    /// <summary>
+    /// 四面体のフェースを取得
+    /// </summary>
+    /// <returns>フェースの配列</returns>
+    public FaceList[] GetFaces()
+    {
+        var faces = new FaceList[4];
+        for (int i = 0; i < 4; ++i)
+        {
+            faces[i] = new FaceList(Element[indices[i]], Element[indices[i+1]], Element[indices[i+2]]);
+        }
+        return faces;
     }
 }
 
@@ -95,6 +111,29 @@ public class EdgeList : IEqualityComparer
     }
 }
 
+[System.Serializable]
+public class FaceList : IEqualityComparer
+{
+    public int[] Face = new int[3] { -1, -1, -1 };
+
+    public FaceList(int a, int b, int c)
+    {
+        Face[0] = a;
+        Face[1] = b;
+        Face[2] = c;
+    }
+
+    public new bool Equals(object x, object y)
+    {
+        throw new NotImplementedException();
+    }
+
+    public int GetHashCode(object obj)
+    {
+        throw new NotImplementedException();
+    }
+}
+
 public class InputPart : ScriptableObject
 {
     /// <summary>
@@ -111,6 +150,11 @@ public class InputPart : ScriptableObject
     /// 節点の座標値
     /// </summary>
     [SerializeField] public Vector3[] Positions;
+
+    /// <summary>
+    /// 座標変換後の座標値
+    /// </summary>
+    [SerializeField] public Vector3[] MovedPositions;
 
     /// <summary>
     /// 最も大きい要素節点番号
@@ -180,5 +224,15 @@ public class InputPart : ScriptableObject
         }
 
         Edges = edges.ToArray();
+    }
+
+    public void ConstructMovedPosition()
+    {
+        MovedPositions = new Vector3[Positions.Length];
+
+        for (int i = 0; i < Positions.Length; ++i)
+        {
+            MovedPositions[i] = Rotation * (Positions[i] + Translate);
+        }
     }
 }

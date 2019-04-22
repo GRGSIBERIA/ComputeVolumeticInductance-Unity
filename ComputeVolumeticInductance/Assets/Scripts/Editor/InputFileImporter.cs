@@ -192,7 +192,9 @@ public class InputFileImporter
                 currentPart = partName;
                 ++i;
 
+                EditorUtility.DisplayProgressBar("Open Input File", "Read Node", 0.2f);
                 ReadNode(lines, currentPart, ref i);
+                EditorUtility.DisplayProgressBar("Open Input File", "Read Element", 0.4f);
                 ReadElement(lines, currentPart, ref i);
             }
 
@@ -219,7 +221,9 @@ public class InputFileImporter
                     ++i;
                 }
 
+                EditorUtility.DisplayProgressBar("Open Input File", "Read Node", 0.2f);
                 ReadNode(lines, currentPart, ref i);
+                EditorUtility.DisplayProgressBar("Open Input File", "Read Element", 0.4f);
                 ReadElement(lines, currentPart, ref i);
             }
             ++i;
@@ -234,6 +238,8 @@ public class InputFileImporter
         if (!File.Exists(path))
             throw new FileNotFoundException("Do not exists file: " + path);
 
+        EditorUtility.DisplayProgressBar("Open Input File", "Read Lines", 0.0f);
+
         // 文字列をすべて行に変換する
         string text;
         using (StreamReader sr = new StreamReader(path))
@@ -245,7 +251,14 @@ public class InputFileImporter
         ReadLines(lines);
 
         // エッジを生成する
+        EditorUtility.DisplayProgressBar("Open Input File", "Constructing Edges", 0.6f);
         foreach (var part in Parts)
             part.Value.ConstructEdges();
+
+        EditorUtility.DisplayProgressBar("Open Input File", "Constructing Moved Position", 0.8f);
+        foreach (var part in Parts)
+            part.Value.ConstructMovedPosition();
+
+        EditorUtility.ClearProgressBar();
     }
 }
