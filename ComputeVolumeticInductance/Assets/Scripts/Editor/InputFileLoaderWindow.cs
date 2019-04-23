@@ -11,7 +11,7 @@ public class InputFileLoaderWindow : ScriptableWizard
     [MenuItem ("CAE Tools/Open Input File")]
     public static void Open()
     {
-        var wiz = DisplayWizard<InputFileLoaderWindow>("Loading .inp file wizerd");
+        var wiz = DisplayWizard<InputFileLoaderWindow>("Open .inp file wizerd");
         var pos = wiz.position;
         pos.height = 128;
         pos.x = 100;
@@ -23,6 +23,12 @@ public class InputFileLoaderWindow : ScriptableWizard
     private void OnWizardCreate()
     {
         var path = AssetDatabase.GetAssetPath(inpFile);
+        if (Path.GetExtension(path) != ".inp")
+        {
+            EditorUtility.DisplayDialog("ERROR", "Please, connect .inp file to InpFile", "OK");
+            return;
+        }
+
         var inp = new InputFileImporter(path);
 
         var basepath = Path.GetFileNameWithoutExtension(path);
@@ -38,5 +44,6 @@ public class InputFileLoaderWindow : ScriptableWizard
             AssetDatabase.CreateAsset(kv.Value, newpath);
             AssetDatabase.ImportAsset(newpath);
         }
+        AssetDatabase.SaveAssets();
     }
 }

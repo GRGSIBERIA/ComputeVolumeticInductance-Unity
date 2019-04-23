@@ -21,7 +21,7 @@ using UnityEditor;
 
 public class InputFileImporter
 {
-    public string Path { get; private set; }
+    public string FilePath { get; private set; }
     public Dictionary<string, InputPart> Parts { get; private set; }
     
     string ContainsParameter(string line, string parameter)
@@ -232,7 +232,7 @@ public class InputFileImporter
 
     public InputFileImporter(string path)
     {
-        Path = path;
+        FilePath = path;
         Parts = new Dictionary<string, InputPart>();
 
         if (!File.Exists(path))
@@ -255,9 +255,29 @@ public class InputFileImporter
         foreach (var part in Parts)
             part.Value.ConstructEdges();
 
+        // フェースを生成する
+        EditorUtility.DisplayProgressBar("Open Input File", "Constructing Faces", 0.7f);
+        foreach (var part in Parts)
+            part.Value.ConstructFaces();
+
+        // 移動後の座標値を生成する
         EditorUtility.DisplayProgressBar("Open Input File", "Constructing Moved Position", 0.8f);
         foreach (var part in Parts)
             part.Value.ConstructMovedPosition();
+
+        // メッシュを生成する
+        EditorUtility.DisplayProgressBar("Open Input File", "Constructing Mesh", 0.9f);
+        var dir = System.IO.Path.GetDirectoryName(path);
+        foreach (var part in Parts)
+        {
+            var mesh = part.Value.ConstructMesh();
+            if (mesh == null)
+                continue;
+
+            var file = System.IO.Path.GetFileNameWithoutExtension(path);
+            var p = string.Format("{0}/{1}/mesh-{2}.asset", dir, file, part.Value.PartName);
+            AssetDatabase.CreateAsset(mesh, p);
+        }
 
         EditorUtility.ClearProgressBar();
     }
