@@ -14,7 +14,7 @@ public class ReportFileLoaderWindow : ScriptableWizard
     {
         var wiz = DisplayWizard<ReportFileLoaderWindow>("Open .rpt file wizard");
         var pos = wiz.position;
-        pos.height = 128;
+        pos.height = 168;
         pos.x = 100;
         pos.y = 100;
         wiz.position = pos;
@@ -42,5 +42,9 @@ public class ReportFileLoaderWindow : ScriptableWizard
             EditorUtility.DisplayDialog("ERROR", "Please, attached PartAsset to InputGameObject.", "OK");
             return;
         }
+
+#pragma warning disable CS0436 // 型がインポートされた型と競合しています
+        var report = new ReportFileImporter(path, part.partAsset);
+#pragma warning restore CS0436 // 型がインポートされた型と競合しています
     }
 }
