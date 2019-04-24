@@ -5,10 +5,13 @@ using UnityEditor;
 using System.IO;
 using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 public class ReportFileImporter
 {
     public string FilePath { get; private set; }
+
+    public ReportPart Report { get; private set; }
 
     public ReportFileImporter(string path, InputPart part)
     {
@@ -26,7 +29,7 @@ public class ReportFileImporter
 
             while (!sr.EndOfStream)
             {
-                lines.Add(sr.ReadLine());
+                lines.Add(sr.ReadLine().Trim());
 
                 if (count > 80000)
                 {
@@ -93,12 +96,19 @@ public class ReportFileImporter
         return times.ToArray();
     }
 
-    private Vector3[] ReadDisplacement(List<string> lines, int positionLength, int maximumNodeId)
+    private float ExtractDisplacement(string line)
+    {
+        // 行はトリミング済みなので，0_______1.0のような空白で分割する
+        return float.Parse(Regex.Split(line, "\\s+")[1]);
+    }
+
+    private Vector3[,] ReadDisplacement(List<string> lines, int timeLength, int positionLength, int maximumNodeId)
     {
         // 変位を初期化
-        Vector3[] move = new Vector3[positionLength];
-        for (int i = 0; i < move.Length; ++i)
-            move[i] = Vector3.zero;
+        Vector3[,] move = new Vector3[timeLength,positionLength];
+        for (int i = 0; i < timeLength; ++i)
+            for (int j = 0; j < positionLength; ++j)
+                move[i, j] = Vector3.zero;
 
         int linenum = 0;
         while (linenum < lines.Count)
@@ -117,15 +127,21 @@ public class ReportFileImporter
                 int pos = header.LastIndexOf("N: ");
                 int num = int.Parse(header.Substring(pos, 3)) - 1;  // インデックスは1を引く
 
+                // 二次要素など要素数をオーバーする要因があれば排除
                 if (maximumNodeId < num)
                 {
-                    ++linenum;
+                    linenum += timeLength + 1;
                     continue;
                 }
 
                 int axis = int.Parse(header.Substring(3, 1)) - 1;
-                // move[num][axis] で値を設定できる
-                
+                for (int timeCount = 0; timeCount < timeLength; ++timeCount, ++linenum)
+                {
+                    float val = ExtractDisplacement(lines[linenum]);
+                    move[timeCount, num][axis] = val;
+                }
+
+
                 // クラス設計的な問題が出てきた
                 // そのまま代入しようとするとmove[time][num][axis]でないと対応ができない
                 // そもそも2次元配列すら扱えないので，Times[timeid].Displacement[num][axis]のような設計でないとデータを入れられない可能性がある
@@ -141,10 +157,25 @@ public class ReportFileImporter
 
     private void ReadLines(List<string> lines, InputPart part)
     {
+        Report = new ReportPart();
+
         // 時間だけ先に読み込む
         float[] times = ReadTimes(lines);
 
         // 変位の読み込み
-        Vector3[] move = ReadDisplacement(lines, part.Positions.Length, part.MaxNodeId);
+        Vector3[,] move = ReadDisplacement(lines, times.Length, part.Positions.Length, part.MaxNodeId);
+
+        TimeData[] data = new TimeData[times.Length];
+
+        for (int timeid = 0; timeid < times.Length; ++timeid)
+        {
+            data[timeid] = new TimeData(part.Positions.Length);
+            data[timeid].Time = times[timeid];
+
+            for (int did = 0; did < part.Positions.Length; ++did)
+                data[timeid].Displacements[did] = move[timeid, did];
+        }
+
+        Report.Data = data;
     }
 }

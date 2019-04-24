@@ -43,8 +43,6 @@ public class ReportFileLoaderWindow : ScriptableWizard
             return;
         }
 
-#pragma warning disable CS0436 // 型がインポートされた型と競合しています
         var report = new ReportFileImporter(path, part.partAsset);
-#pragma warning restore CS0436 // 型がインポートされた型と競合しています
     }
 }
