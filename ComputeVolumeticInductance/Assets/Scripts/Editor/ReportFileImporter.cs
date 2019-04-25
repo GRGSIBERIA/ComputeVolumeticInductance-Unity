@@ -140,14 +140,6 @@ public class ReportFileImporter
                     float val = ExtractDisplacement(lines[linenum]);
                     move[timeCount, num][axis] = val;
                 }
-
-
-                // クラス設計的な問題が出てきた
-                // そのまま代入しようとするとmove[time][num][axis]でないと対応ができない
-                // そもそも2次元配列すら扱えないので，Times[timeid].Displacement[num][axis]のような設計でないとデータを入れられない可能性がある
-                // Reportクラス
-                //  - int num
-                //  - vector3[] displacement
             }
             ++linenum;
         }
