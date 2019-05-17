@@ -4,45 +4,58 @@ using UnityEngine;
 using UnityEditor;
 using System.IO;
 
-public class ReportFileLoaderWindow : ScriptableWizard
+public class ReportFileLoaderWindow : LoaderWindowBase
 {
-    public GameObject inputGameObject;
+    public GameObject inputGameObjectWithPart;
     public Object reportFile;
 
     [MenuItem ("CAE Tools/Open Report File")]
     public static void Open()
     {
-        var wiz = DisplayWizard<ReportFileLoaderWindow>("Open .rpt file wizard");
-        var pos = wiz.position;
-        pos.height = 168;
-        pos.x = 100;
-        pos.y = 100;
-        wiz.position = pos;
-        wiz.Show();
+        ShowWizerd<ReportFileLoaderWindow>("Open .rpt file wizard", 160);
     }
 
-    private void OnWizardCreate()
+    private ReportFileImporter ImportObject()
     {
         var path = AssetDatabase.GetAssetPath(reportFile);
         if (Path.GetExtension(path) != ".rpt")
         {
             EditorUtility.DisplayDialog("ERROR", "Please, connect .rpt file to ReportFile.", "OK");
-            return;
+            return null;
         }
 
-        var part = inputGameObject.GetComponent<PartObject>();
+        var part = inputGameObjectWithPart.GetComponent<PartObject>();
         if (part == null)
         {
             EditorUtility.DisplayDialog("ERROR", "Please, attached PartObject to InputGameObject.", "OK");
-            return;
+            return null;
         }
 
         if (part.partAsset == null)
         {
             EditorUtility.DisplayDialog("ERROR", "Please, attached PartAsset to InputGameObject.", "OK");
-            return;
+            return null;
         }
 
-        var report = new ReportFileImporter(path, part.partAsset);
+        return new ReportFileImporter(path, part.partAsset);
+    }
+
+    private void OnWizardCreate()
+    {
+        var report = ImportObject();
+        if (report == null)
+            return;
+
+        var path = AssetDatabase.GetAssetPath(reportFile);
+        var basepath = Path.GetFileNameWithoutExtension(path);
+        var basedir = Path.GetDirectoryName(path);
+        var filename = Path.GetFileNameWithoutExtension(AssetDatabase.GetAssetPath(reportFile));
+
+        CheckDirectory(basedir, basepath);
+
+        var newpath = string.Format("{0}/{1}/{2}.asset", basedir, basepath, filename);
+        AssetDatabase.CreateAsset(report.Report, newpath);
+        AssetDatabase.ImportAsset(newpath);
+        AssetDatabase.SaveAssets();
     }
 }

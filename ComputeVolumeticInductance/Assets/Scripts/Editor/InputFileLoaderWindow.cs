@@ -4,20 +4,14 @@ using System.IO;
 using UnityEngine;
 using UnityEditor;
 
-public class InputFileLoaderWindow : ScriptableWizard
+public class InputFileLoaderWindow : LoaderWindowBase
 {
     public Object inpFile;
 
     [MenuItem ("CAE Tools/Open Input File")]
     public static void Open()
     {
-        var wiz = DisplayWizard<InputFileLoaderWindow>("Open .inp file wizerd");
-        var pos = wiz.position;
-        pos.height = 128;
-        pos.x = 100;
-        pos.y = 100;
-        wiz.position = pos;
-        wiz.Show();
+        ShowWizerd<InputFileLoaderWindow>("Open .inp file wizerd");
     }
     
     private void OnWizardCreate()
@@ -35,8 +29,7 @@ public class InputFileLoaderWindow : ScriptableWizard
         var basedir = Path.GetDirectoryName(path);
 
         // ディレクトリが存在しなければ作っておく
-        if (!Directory.Exists(basedir + "/" + basepath))
-            AssetDatabase.CreateFolder(basedir, basepath);
+        CheckDirectory(basedir, basepath);
 
         foreach (var kv in inp.Parts)
         {
